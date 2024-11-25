@@ -1,5 +1,3 @@
-from ceph.ceph_admin import CephAdmin
-from ceph.rados.core_workflows import RadosOrchestrator
 from tests.rbd.exceptions import RbdBaseException
 from tests.rbd.rbd_utils import Rbd, initial_rbd_config
 from utility.log import Log
@@ -7,7 +5,7 @@ from utility.log import Log
 log = Log(__name__)
 
 
-def test_snap_clone(ceph_cluster, rbd, pool_type, **kw):
+def test_snap_clone(rbd, pool_type, **kw):
     """
     This module verifies snapshot and cloning operations on an imported image
 
@@ -59,21 +57,10 @@ def test_snap_clone(ceph_cluster, rbd, pool_type, **kw):
 
     finally:
         if not kw.get("config").get("do_not_cleanup_pool"):
-            rbd.clean_up(pools=[pool])
-            config = kw["config"]
-            cephadm = CephAdmin(cluster=ceph_cluster, **config)
-            rados_obj = RadosOrchestrator(node=cephadm)
-            list_of_pools = rados_obj.list_pools()
-            list_of_pools = [
-                x
-                for x in list_of_pools
-                if not (x.startswith(".") or x.startswith("default"))
-            ]
-            log.info(f"All pools still in the pool: {list_of_pools}")
-            rbd.clean_up(pools=list_of_pools)
+            rbd.clean_up(pools=[pool], flag="all")
 
 
-def run(ceph_cluster, **kw):
+def run(**kw):
     """
     This module verifies snapshot and cloning operations on an imported image
     on EC pool and Replicated pool.
@@ -90,17 +77,13 @@ def run(ceph_cluster, **kw):
         log.info(
             "Running snapshot and cloning operations on an imported image in EC pool"
         )
-        if test_snap_clone(
-            ceph_cluster, rbd_obj.get("rbd_ecpool"), "ec_pool_config", **kw
-        ):
+        if test_snap_clone(rbd_obj.get("rbd_ecpool"), "ec_pool_config", **kw):
             return 1
 
         # To run test on replicated pool
         log.info(
             "Running snapshot and cloning operations on an imported image in replicated pool"
         )
-        if test_snap_clone(
-            ceph_cluster, rbd_obj.get("rbd_reppool"), "rep_pool_config", **kw
-        ):
+        if test_snap_clone(rbd_obj.get("rbd_reppool"), "rep_pool_config", **kw):
             return 1
         return 0

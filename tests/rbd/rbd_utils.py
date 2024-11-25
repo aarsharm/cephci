@@ -679,7 +679,7 @@ class Rbd:
         """
         self.exec_cmd(cmd=f"rbd export {imagespec} {path}", long_running=True)
 
-    def clean_up(self, **kw):
+    def clean_up(self, flag="None", **kw):
         if kw.get("dir_name"):
             self.exec_cmd(cmd="rm -rf {}".format(kw.get("dir_name")))
 
@@ -698,6 +698,24 @@ class Rbd:
                     cmd="ceph osd pool delete {pool} {pool} "
                     "--yes-i-really-really-mean-it".format(pool=pool)
                 )
+
+            # Deletes all test pools in the cluster
+            if flag == "all":
+                out = self.exec_cmd(
+                    cmd="ceph df detail --format json-pretty", output=True
+                )
+                status = json.loads(out.rstrip())
+                list_of_pools = [entry["name"] for entry in status["pools"]]
+                list_of_pools = [
+                    x
+                    for x in list_of_pools
+                    if not (x.startswith(".") or x.startswith("default"))
+                ]
+                for pool in list_of_pools:
+                    self.exec_cmd(
+                        cmd="ceph osd pool delete {pool} {pool} "
+                        "--yes-i-really-really-mean-it".format(pool=pool)
+                    )
 
     def migration_prepare(self, src_spec, dest_spec, **kw):
         """Migration Prepare.
