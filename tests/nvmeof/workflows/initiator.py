@@ -143,16 +143,37 @@ class NVMeInitiator(Initiator):
         LOG.debug(targets)
         return targets
 
-    def start_fio(self, io_size="100%"):
-        """Start FIO on the all targets on client node."""
-        paths = self.list_devices()
-        results = []
-        io_args = {"size": io_size}
+    def start_fio(self, io_size="100%", runtime=None, paths=None, **kwargs):
+        """Start FIO on the all targets on client node.
+
+        Args:
+            io_size: Size of the IO to be performed
+            paths: List of paths to perform IO on
+            **kwargs: Additional arguments for FIO
+        """
+        if not paths:
+            LOG.info("No paths provided, fetching all devices")
+            paths = self.list_devices()
+            LOG.info(f"All devices found are {paths}")
+        else:
+            LOG.info(f"Paths provided are {paths}")
 
         if not paths:
             raise Exception("No paths found")
 
-        LOG.info(f"Paths found are {paths}")
+        results = []
+        io_args = {}
+        # User can't pass both runtime and size, so we need to handle this case
+        if runtime and io_size:
+            raise Exception("User can't pass both runtime and size for FIO")
+        if runtime:
+            io_args.update({"runtime": runtime})
+        else:
+            io_args.update({"size": io_size})
+
+        # Update io_args if test_name is provided
+        if kwargs.get("test_name"):
+            io_args.update({"test_name": kwargs.get("test_name")})
 
         # Use max_workers to ensure all FIO processes can start simultaneously
         with parallel(max_workers=len(paths) + 4) as p:
@@ -173,6 +194,15 @@ class NVMeInitiator(Initiator):
                         "verbose": True,
                     }
                 )
+                if kwargs.get("output_dir"):
+                    test_name = f"{kwargs['test_name']}-" f"{path.replace('/', '_')}"
+                    _io_args.update(
+                        {
+                            "test_name": test_name,
+                            "output_format": "json",
+                            "output_dir": kwargs["output_dir"],
+                        }
+                    )
                 _io_args = {**io_args, **_io_args}
                 p.spawn(run_fio, **_io_args)
             for op in p:
